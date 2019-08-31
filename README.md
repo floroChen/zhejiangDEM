@@ -13,8 +13,8 @@ demZj.sppts<-readGDAL(fn[1]) %>%  #读取GeoTiff文件
       raster(.) %>%  #栅格化
       aggregate(., fact=9) %>%  #降低分辨率（聚合 9倍）
       rasterToPoints(. , spatial=T )  
-for(f in 2:length(fn)){
-   a<-readGDAL(fn[1]) %>%  #读取GeoTiff文件
+for(f in fn[-1]){
+   a<-readGDAL(f) %>%  #读取GeoTiff文件
       raster(.) %>%  #栅格化
       aggregate(., fact=9) %>%  #降低分辨率（聚合 9倍）
       rasterToPoints(. , spatial=T ) 
