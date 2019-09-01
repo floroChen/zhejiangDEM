@@ -9,14 +9,48 @@ shp地图的原始数据来自Micaps自带的浙江区域地图，并拼接了�
 ##########################################
 #地理空间数据云 生成的浙江90m*90m DEM数据（GeoTiff格式）,fn的值即为对应的文件名（已经gscloud在线计算重设边界）
 fn<-c( "srtm_60_06_20190829204613.tiff", "srtm_60_07_20190829204613.tiff", "srtm_61_06_20190829204614.tiff", "srtm_61_07_20190829204615.tiff") #区域所涉GeoTiff文件
-demZj.sppts<-readGDAL(fn[1]) %>%  #读取GeoTiff文件
-      raster(.) %>%  #栅格化
-      aggregate(., fact=9) %>%  #降低分辨率（聚合 9倍）
-      rasterToPoints(. , spatial=T )  
-for(f in fn[-1]){
-   a<-readGDAL(f) %>%  #读取GeoTiff文件
-      raster(.) %>%  #栅格化
-      aggregate(., fact=9) %>%  #降低分辨率（聚合 9倍）
-      rasterToPoints(. , spatial=T ) 
-   demZj.sppts<spRbind(demZj.sppts, a)  #空间单元拼合
+
+demZj.grdsp<-GtiffUnion(fn,2, 2)
+demZj.grdsp.ra<-raster(demZj.grdsp)
+demZj.grdsp.ra<-aggregate(demZj.grdsp.ra, fact=10) #聚合处理，降低分辨率10倍
+
+#raster格式保存，“*.grd、*.gri”
+writeRaster(x=demZj.grdsp.ra, filename= "demZj2.raster", format="raster")
+#GeoTiff格式保存  “*.tif”
+writeRaster(x=demZj.grdsp.ra, filename= "demZj2", format="GTiff")
+
+#############DEM拼接处理函数GtiffUnion  数据格式说明######
+# gtiffs：GeoTiff格式(相同分辨率）文件名向量，方形区域(n列*m行
+# gtiff文件 顺序：左上起，从上到下，从左到右（地理空间数据云平台默认方式）
+#
+#返回值是SpatialGridDataFrame对象
+###########################################
+GtiffUnion<-function(gtiffs,n,m){ 
+   para.a<-NULL    #左下角Grid文件的网格参数
+      f.mat<-NULL
+      for(j in 1:m){  
+          f.grd<-readGDAL(gtiffs[j])
+          if(j==m ) #左下(i==0: i*m+j) 
+              para.a<-gridparameters(f.grd)
+          f.mat<-cbind(f.mat,as.matrix(f.grd))
+      }
+   demZ<-rbind(demZ, f.mat)
+   Crss<-proj4string(f.grd) 
+
+   for(i in 1:(n-1)){
+      f.mat<-NULL
+      for(j in 1:m){  
+          f.grd<-readGDAL(gtiffs[i*m+j])
+          f.mat<-cbind(f.mat,as.matrix(f.grd))
+      }
+      demZ<-rbind(demZ, f.mat)
+    }
+    demZ.dim<-dim(demZ)
+    demZ.grd<-GridTopology(para.a$cellcentre.offset, para.a$cellsize, demZ.dim)
+    #将demZ矩阵转成单列data.frame
+    hh<-as.vector(demZ)
+    demZ.grdsp<-SpatialGridDataFrame(grid=demZ.grd, 
+        data=data.frame(hh=hh), proj4string = Crss)
+    return(demZ.grdsp)
 }
+
